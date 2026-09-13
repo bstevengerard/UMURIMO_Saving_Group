@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { AppContextProvider, useApp } from "./context/AppContext";
 import Sidebar from "./components/Sidebar";
@@ -22,9 +22,20 @@ import ForgotPasswordPage from "./features/ForgotPasswordPage";
 import EmergencyAidModule from "./features/EmergencyAidModule";
 import SharesModule from "./features/SharesModule";
 import AuditLogs from "./features/AuditLogs";
+import MaintenancePage from "./pages/MaintenancePage";
+import PasswordChangePage from "./features/PasswordChangePage";
+import VerifyEmailPage from "./features/VerifyEmailPage";
+import ContributionsModule from "./features/ContributionsModule";
+import SavingsModule from "./features/SavingsModule";
+import GeneralLedgerPage from "./features/GeneralLedgerPage";
+import MemberStatementPage from "./features/MemberStatementPage";
+import MemberObligationsPage from "./features/MemberObligationsPage";
+import LoanStatementPage from "./features/LoanStatementPage";
+import ReconciliationPage from "./features/ReconciliationPage";
+import TrialBalancePage from "./features/TrialBalancePage";
 
 import {
-  Shield, Sparkles, Users
+  Shield, Sparkles
 } from "lucide-react";
 
 function WaveLoader() {
@@ -187,7 +198,7 @@ function AuthenticatedLayout() {
   const location = useLocation();
 
   const path = location.pathname.replace("/", "") || "dashboard";
-  const validTabs = ["dashboard", "members", "shares", "loans", "repayments", "emergency-aid", "meetings", "announcements", "sms", "reports", "admin-reports", "audit-logs", "loan-config", "roles"];
+  const validTabs = ["dashboard", "members", "shares", "contributions", "savings", "loans", "repayments", "emergency-aid", "meetings", "announcements", "sms", "reports", "general-ledger", "trial-balance", "reconciliation", "member-statement", "member-obligations", "loan-statement", "admin-reports", "audit-logs", "loan-config", "roles"];
   const activeTab = validTabs.includes(path) ? path : "dashboard";
 
   React.useEffect(() => {
@@ -203,6 +214,8 @@ function AuthenticatedLayout() {
       case "dashboard": return <DashboardOverview />;
       case "members": return <MembersModule />;
       case "shares": return <SharesModule />;
+      case "contributions": return <ContributionsModule />;
+      case "savings": return <SavingsModule />;
       case "loans": return <LoansModule />;
       case "repayments": return <RepaymentsModule />;
       case "emergency-aid": return <EmergencyAidModule />;
@@ -210,6 +223,12 @@ function AuthenticatedLayout() {
       case "sms": return <CommsModule />;
       case "announcements": return <AnnouncementsModule />;
       case "reports": return <ReportsModule />;
+      case "general-ledger": return <GeneralLedgerPage />;
+      case "trial-balance": return <TrialBalancePage />;
+      case "reconciliation": return <ReconciliationPage />;
+      case "member-statement": return <MemberStatementPage />;
+      case "member-obligations": return <MemberObligationsPage />;
+      case "loan-statement": return <LoanStatementPage />;
       case "admin-reports": return <AdminReports />;
       case "audit-logs": return <AuditLogs />;
       case "loan-config":
@@ -230,7 +249,26 @@ function AuthenticatedLayout() {
 }
 
 function MainAppContent() {
-  const { user, isLoading } = useApp();
+  const { user, isLoading, frontendMaintenanceMode, setFrontendMaintenanceMode } = useApp();
+
+  useEffect(() => {
+    if (frontendMaintenanceMode) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch("/api/maintenance/status", { headers: { Accept: "application/json" } });
+        if (!res.ok) throw new Error("Network response was not ok");
+        const data = await res.json();
+        if (data.maintenanceMode && !cancelled) {
+          setFrontendMaintenanceMode(true);
+        }
+      } catch {
+        // ignore initial check failures
+      }
+    };
+    check();
+    return () => { cancelled = true; };
+  }, [frontendMaintenanceMode, setFrontendMaintenanceMode]);
 
   if (isLoading && !user) {
     return (
@@ -255,11 +293,16 @@ function MainAppContent() {
     );
   }
 
+  if (frontendMaintenanceMode) {
+    return <MaintenancePage />;
+  }
+
   return (
     <>
       <Toast />
       {user ? (
         <Routes>
+          <Route path="/change-password" element={<PasswordChangePage />} />
           <Route path="/*" element={<AuthenticatedLayout />} />
         </Routes>
       ) : (
@@ -267,6 +310,7 @@ function MainAppContent() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

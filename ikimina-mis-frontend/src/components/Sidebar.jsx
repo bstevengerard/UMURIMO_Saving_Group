@@ -17,7 +17,15 @@ import {
   Sparkles,
   UserCheck,
   X,
-  ShieldAlert
+  ShieldAlert,
+  PiggyBank,
+  Wallet,
+  BookOpen,
+  User,
+  ClipboardList,
+  Receipt,
+  Scale,
+  FileSearch
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -32,6 +40,8 @@ const NAV_SECTIONS = [
     label: "Money",
     items: [
       { id: "shares", label: "Shares", icon: TrendingUp },
+      { id: "contributions", label: "Contributions", icon: PiggyBank },
+      { id: "savings", label: "Savings", icon: Wallet },
       { id: "loans", label: "Loans", icon: FileText },
       { id: "repayments", label: "Repayments", icon: BadgeCent },
       { id: "emergency-aid", label: "Emergency Aid", icon: ShieldAlert, permission: "manage_contributions" },
@@ -46,9 +56,15 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    label: "Reports & Settings",
+    label: "Reports",
     items: [
       { id: "reports", label: "Reports", icon: FileBarChart2 },
+      { id: "general-ledger", label: "General Ledger", icon: BookOpen },
+      { id: "trial-balance", label: "Trial Balance", icon: Scale },
+      { id: "reconciliation", label: "Reconciliation", icon: FileSearch },
+      { id: "member-statement", label: "Member Statement", icon: User },
+      { id: "member-obligations", label: "Member Obligations", icon: ClipboardList },
+      { id: "loan-statement", label: "Loan Statement", icon: Receipt },
       { id: "admin-reports", label: "Admin Reports", icon: FileBarChart2, adminOnly: true },
       { id: "audit-logs", label: "Audit Logs", icon: FileText, adminOnly: true },
       { id: "loan-config", label: "Loan Settings", icon: Sliders, adminOnly: true },

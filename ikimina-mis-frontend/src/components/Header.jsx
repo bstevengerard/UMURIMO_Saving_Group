@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import GoogleTranslate from "./GoogleTranslate";
 import {
@@ -9,7 +10,8 @@ import {
   CheckCheck,
   Trash2,
   Eye,
-  EyeOff
+  EyeOff,
+  KeyRound
 } from "lucide-react";
 
 export default function Header() {
@@ -24,6 +26,7 @@ export default function Header() {
     mobileMenuOpen,
     setMobileMenuOpen
   } = useApp();
+  const navigate = useNavigate();
   
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -244,6 +247,13 @@ export default function Header() {
                 </p>
               </div>
               <div className="p-1.5">
+                <button
+                  onClick={() => { navigate("/change-password"); setShowUserMenu(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-lg transition"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Change Password
+                </button>
                 <button
                   onClick={() => { logout(); setShowUserMenu(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition"
