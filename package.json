@@ -1,0 +1,29 @@
+{
+  "name": "ikimina-mis",
+  "version": "1.0.0",
+  "description": "IKIMINA Management Information System",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js"
+  },
+  "dependencies": {
+    "axios": "^1.8.4",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.8",
+    "dotenv": "^17.2.1",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.6.2",
+    "node-schedule": "^2.1.1",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.3",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

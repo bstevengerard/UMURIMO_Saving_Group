@@ -1,0 +1,10 @@
+{
+  "name": "Remix: IKIMINA-MIS",
+  "description": "A digital community cooperative finance and Ikimina savings management system, featuring secure member, contribution, loan, meeting, and reporting systems.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,8 @@
+-- Create unique constraint for share profit distributions
+CREATE UNIQUE INDEX IF NOT EXISTS "share_profit_distributions_period_unique" 
+ON "share_profit_distributions" ("distribution_period", "period_start", "period_end");
+
+-- Create unique constraint for ledger entries (idempotency)
+CREATE UNIQUE INDEX IF NOT EXISTS "ledger_entries_source_unique" 
+ON "ledger_entries" ("source_module", "source_record_id", "source_record_type", "account_id") 
+WHERE "status" != 'reversed';

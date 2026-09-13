@@ -1,0 +1,847 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  member
+  admin
+  treasurer
+  president
+}
+
+enum ContributionStatus {
+  paid
+  pending
+  overdue
+}
+
+enum ContributionFrequency {
+  weekly
+  monthly
+  quarterly
+  one_time
+}
+
+enum LoanStatus {
+  pending
+  approved
+  rejected
+  disbursed
+  completed
+  overdue
+}
+
+enum InterestIncrementCondition {
+  after_30_days_overdue
+  after_60_days_overdue
+  admin_trigger
+  custom
+}
+
+enum PrincipalBase {
+  totalSavings
+  totalShares
+  savingsAndShares
+  fixedAmount
+  custom
+}
+
+enum ProfitFormula {
+  interest_plus_penalties
+  interest_plus_penalties_plus_principal
+  custom
+}
+
+enum ShareDistributionPeriod {
+  monthly
+  quarterly
+  semi_annual
+  annual
+}
+
+enum EmergencyAidRestrictionRule {
+  block_new_loans
+  block_meeting_attendance
+  custom
+  none
+}
+
+enum MeetingEventType {
+  regular_meeting
+  general_assembly
+  special_meeting
+  other
+}
+
+enum AttendanceIntent {
+  pending
+  verified
+  rejected
+  escalated
+  cancelled
+}
+
+enum MeetingAttendanceStatus {
+  draft
+  open
+  closed
+  finalized
+}
+
+enum MeetingFineStatus {
+  pending
+  paid
+  waived
+}
+
+enum EmergencyAidStatus {
+  open
+  closed
+  cancelled
+}
+
+enum PaymentStatus {
+  paid
+  pending
+  overdue
+}
+
+enum AnnouncementPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum SmsStatus {
+  pending
+  sent
+  delivered
+  failed
+  cancelled
+}
+
+enum SmsPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum SmsCategory {
+  loan
+  attendance
+  contribution
+  meeting
+  general
+  repayment
+}
+
+enum InstallmentApprovalStatus {
+  pending
+  approved
+  denied
+  cancelled
+}
+
+enum InstallmentStatus {
+  pending
+  paid
+  overdue
+  partial
+}
+
+enum AccountType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+}
+
+enum AccountCategory {
+  cash_bank
+  member_savings
+  member_contributions
+  loan_receivables
+  interest_income
+  fine_income
+  emergency_aid_fund
+  share_capital
+  share_profit_distribution
+  operating_expenses
+  member_deposits
+}
+
+enum LedgerEntryStatus {
+  draft
+  posted
+  reversed
+}
+
+model ChartOfAccount {
+  id                  String          @id @default(uuid())
+  code                String          @unique @db.VarChar(20)
+  name                String          @db.VarChar(255)
+  account_type        AccountType
+  category            AccountCategory
+  parent_id           String?
+  is_active           Boolean         @default(true)
+  description         String?         @default("") @db.VarChar(500)
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+
+  parent              ChartOfAccount? @relation("AccountHierarchy", fields: [parent_id], references: [id], onDelete: SetNull)
+  children            ChartOfAccount[] @relation("AccountHierarchy")
+  ledger_entries      LedgerEntry[]
+
+  @@index([account_type])
+  @@index([category])
+  @@index([code])
+  @@map("chart_of_accounts")
+}
+
+model LedgerEntry {
+  id                  String            @id @default(uuid())
+  account_id          String
+  member_id           String?
+  loan_id             String?
+  installment_id      String?
+  transaction_date    DateTime          @default(now())
+  debit               Decimal           @default(0) @db.Decimal(12, 2)
+  credit              Decimal           @default(0) @db.Decimal(12, 2)
+  description         String            @db.VarChar(500)
+  source_module       String            @db.VarChar(100)
+  source_record_id    String            @db.VarChar(255)
+  source_record_type  String            @db.VarChar(100)
+  status              LedgerEntryStatus @default(draft)
+  reversal_of_id      String?
+  posted_by_id        String?
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+
+  account             ChartOfAccount    @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  reversal_of         LedgerEntry?      @relation("LedgerReversal", fields: [reversal_of_id], references: [id], onDelete: SetNull)
+  reversals           LedgerEntry[]     @relation("LedgerReversal")
+
+  @@index([account_id, transaction_date])
+  @@index([source_module, source_record_id])
+  @@unique([source_module, source_record_id, source_record_type, account_id])
+  @@index([member_id])
+  @@index([loan_id])
+  @@index([status])
+  @@map("ledger_entries")
+}
+
+model Member {
+  id                    String    @id @default(uuid())
+  email                 String    @unique @db.VarChar(255)
+  national_id           String    @unique @db.VarChar(50)
+  password_hash         String    @db.VarChar(255)
+  full_name             String    @db.VarChar(255)
+  phone                 String    @db.VarChar(50)
+  role                  Role      @default(member)
+  is_active             Boolean   @default(true)
+  is_approved           Boolean   @default(false)
+  approved_by_id        String?
+  approved_at           DateTime?
+  permissions           Json?
+  documents             Json?
+  email_verified        Boolean   @default(false)
+  email_verification_token String?
+  email_verification_expires DateTime?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  approved_by           Member?   @relation("MemberApproval", fields: [approved_by_id], references: [id], onDelete: SetNull)
+  approved_members      Member[]  @relation("MemberApproval")
+
+  contributions         Contribution[]
+  savings               Savings[]
+  loans                 Loan[]
+  loan_repayment_schedules LoanRepaymentSchedule[]
+  member_shares         MemberShare?
+  share_transactions    MemberShareTransaction[]
+  created_meetings      Meeting[]
+  created_announcements Announcement[]
+  created_contribution_types ContributionType[]
+  created_sms_notifications SmsNotification[] @relation("SmsNotificationCreator")
+  created_share_profit_distributions ShareProfitDistribution[] @relation("ShareProfitDistributionCreator")
+  created_emergency_aids EmergencyAid[]
+  recorded_contributions Contribution[] @relation("ContributionRecorder")
+  recorded_savings      Savings[] @relation("SavingsRecorder")
+  recorded_emergency_aid_payments EmergencyAidPayment[] @relation("EmergencyAidPaymentRecorder")
+  created_loan_configs  LoanConfiguration? @relation("LoanConfigCreator")
+  created_share_configs ShareConfiguration? @relation("ShareConfigCreator")
+  created_meeting_fines MeetingFine[] @relation("MeetingFineCreator")
+  audit_logs_as_actor   AuditLog[] @relation("AuditLogActor")
+  verified_attendances  Attendance[] @relation("AttendanceVerifier")
+  approved_installments LoanRepaymentSchedule[] @relation("InstallmentApprover")
+  sms_subscription      SmsSubscription?
+  created_report_snapshots ReportSnapshot[] @relation("ReportSnapshotCreator")
+  password_reset_otps   PasswordResetOtp[]
+  fines_as_member       MeetingFine[] @relation("MeetingFineMember")
+  emergency_aid_payments_as_member EmergencyAidPayment[] @relation("EmergencyAidPaymentMember")
+  emergency_aid_participations EmergencyAidParticipation[]
+  attendance_records    Attendance[] @relation("AttendanceMember")
+  approved_loans        Loan[] @relation("LoanApprover")
+  sms_received          SmsNotification[] @relation("SmsNotificationRecipient")
+
+  @@index([email])
+  @@index([national_id])
+  @@index([phone])
+  @@index([role])
+  @@index([is_active])
+  @@index([is_approved])
+  @@index([created_at])
+  @@map("members")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  role        String   @unique @db.VarChar(50)
+  permissions Json?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("permissions")
+}
+
+model ContributionType {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(255)
+  description String?  @default("") @db.VarChar(500)
+  amount      Decimal  @db.Decimal(12, 2)
+  frequency   ContributionFrequency @default(weekly)
+  is_required Boolean  @default(true)
+  deadline    DateTime?
+  is_active   Boolean  @default(true)
+  created_by_id String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  created_by  Member   @relation(fields: [created_by_id], references: [id], onDelete: Restrict)
+  contributions Contribution[]
+
+  @@index([is_active])
+  @@map("contribution_types")
+}
+
+model Contribution {
+  id                    String    @id @default(uuid())
+  member_id             String
+  week                  DateTime
+  amount                Decimal   @db.Decimal(12, 2)
+  payment_status        ContributionStatus @default(pending)
+  recorded_by_id        String
+  contribution_type_id  String?
+  payment_method        String    @default("Mobile Money") @db.VarChar(100)
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  member                Member     @relation(fields: [member_id], references: [id], onDelete: Restrict)
+  recorded_by           Member     @relation("ContributionRecorder", fields: [recorded_by_id], references: [id], onDelete: Restrict)
+  contribution_type     ContributionType? @relation(fields: [contribution_type_id], references: [id], onDelete: SetNull)
+
+  @@index([member_id, week])
+  @@index([week])
+  @@index([payment_status])
+  @@map("contributions")
+}
+
+model LoanConfiguration {
+  id                                String   @id @default(uuid())
+  max_loan_amount                   Decimal  @default(500000) @db.Decimal(12, 2)
+  min_loan_amount                   Decimal  @default(10000) @db.Decimal(12, 2)
+  base_interest_rate                Decimal  @default(3) @db.Decimal(5, 2)
+  interest_increment                Decimal  @default(3) @db.Decimal(5, 2)
+  allow_interest_increment          Boolean  @default(true)
+  interest_increment_condition      InterestIncrementCondition @default(after_30_days_overdue)
+  loan_limit_multiplier             Decimal  @default(3) @db.Decimal(5, 2)
+  principal_base                    PrincipalBase @default(totalSavings)
+  fixed_principal_base              Decimal  @default(0) @db.Decimal(12, 2)
+  monthly_loan_limit                Decimal  @default(0) @db.Decimal(12, 2)
+  max_active_loans                  Int      @default(1)
+  max_term_months                   Int      @default(12)
+  min_term_months                   Int      @default(1)
+  overdue_penalty_rate              Decimal  @default(5) @db.Decimal(5, 2)
+  grace_period_days                 Int      @default(0)
+  repayment_reminder_days           Json?
+  allow_multiple_loans              Boolean  @default(false)
+  require_guarantor                 Boolean  @default(false)
+  profit_formula                    ProfitFormula @default(interest_plus_penalties)
+  share_profit_allocation_percent   Decimal  @default(30) @db.Decimal(5, 2)
+  share_distribution_period         ShareDistributionPeriod @default(quarterly)
+  emergency_aid_fine_rate           Decimal  @default(5) @db.Decimal(5, 2)
+  emergency_aid_restriction_rule    EmergencyAidRestrictionRule @default(block_new_loans)
+  restriction_rule_note             String?  @default("") @db.VarChar(500)
+  attendance_fine_absence           Decimal  @default(500) @db.Decimal(12, 2)
+  attendance_fine_late              Decimal  @default(200) @db.Decimal(12, 2)
+  auto_create_attendance_fines      Boolean  @default(true)
+  created_by_id                    String?   @unique
+  created_at                       DateTime @default(now())
+  updated_at                       DateTime @updatedAt
+
+  created_by                       Member?   @relation("LoanConfigCreator", fields: [created_by_id], references: [id], onDelete: SetNull)
+
+  @@map("loan_configurations")
+}
+
+model Loan {
+  id                          String      @id @default(uuid())
+  member_id                   String
+  amount                      Decimal     @db.Decimal(12, 2)
+  interest_rate               Decimal     @db.Decimal(5, 2)
+  term_months                 Int
+  status                      LoanStatus  @default(pending)
+  request_date                DateTime    @default(now())
+  approval_date               DateTime?
+  disbursement_date           DateTime?
+  due_date                    DateTime?
+  approved_by_id              String?
+  balance                     Decimal     @default(0) @db.Decimal(12, 2)
+  original_interest_rate      Decimal     @default(0) @db.Decimal(5, 2)
+  total_interest_rate         Decimal     @default(0) @db.Decimal(5, 2)
+  interest_increment_applied  Boolean     @default(false)
+  interest_increment_date     DateTime?
+  monthly_loan_limit_status   String      @default("eligible") @db.VarChar(20)
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt
+
+  member                      Member      @relation(fields: [member_id], references: [id], onDelete: Restrict)
+  approved_by                 Member?     @relation("LoanApprover", fields: [approved_by_id], references: [id], onDelete: SetNull)
+  repayment_schedules         LoanRepaymentSchedule[]
+  overdue_interests           LoanOverdueInterest[]
+
+  @@index([member_id])
+  @@index([status])
+  @@index([request_date])
+  @@index([due_date])
+  @@map("loans")
+}
+
+model LoanRepaymentSchedule {
+  id                      String            @id @default(uuid())
+  loan_id                 String
+  member_id               String
+  installment_number      Int
+  due_date                DateTime
+  principal_amount        Decimal           @db.Decimal(12, 2)
+  interest_amount         Decimal           @db.Decimal(12, 2)
+  total_amount            Decimal           @db.Decimal(12, 2)
+  paid_amount             Decimal           @default(0) @db.Decimal(12, 2)
+  approved_paid_amount    Decimal           @default(0) @db.Decimal(12, 2)
+  status                  InstallmentStatus @default(pending)
+  paid_at                 DateTime?
+  payment_method          String?
+  notes                   String?
+  approval_status         InstallmentApprovalStatus @default(pending)
+  approval_note           String            @default("") @db.VarChar(500)
+  approved_by_id          String?
+  approved_at             DateTime?
+  interest_rate_at_time   Decimal           @default(0) @db.Decimal(5, 2)
+  created_at              DateTime          @default(now())
+  updated_at              DateTime          @updatedAt
+
+  loan                    Loan              @relation(fields: [loan_id], references: [id], onDelete: Restrict)
+  member                  Member            @relation(fields: [member_id], references: [id], onDelete: Restrict)
+  approved_by             Member?           @relation("InstallmentApprover", fields: [approved_by_id], references: [id], onDelete: SetNull)
+
+  @@index([loan_id, installment_number])
+  @@index([due_date, status])
+  @@index([member_id])
+  @@map("loan_repayment_schedules")
+}
+
+model LoanOverdueInterest {
+  id                String      @id @default(uuid())
+  loan_id           String
+  installment_id    String?
+  month_year        String      @db.VarChar(20)
+  overdue_amount    Decimal     @db.Decimal(12, 2)
+  interest_amount   Decimal     @db.Decimal(12, 2)
+  created_at        DateTime    @default(now())
+
+  loan              Loan        @relation(fields: [loan_id], references: [id], onDelete: Cascade)
+
+  @@unique([loan_id, month_year])
+  @@index([loan_id, created_at])
+  @@map("loan_overdue_interests")
+}
+
+model Savings {
+  id               String   @id @default(uuid())
+  member_id        String
+  amount           Decimal  @db.Decimal(12, 2)
+  transaction_date DateTime @default(now())
+  payment_method   String   @default("Mobile Money") @db.VarChar(100)
+  notes            String   @default("") @db.VarChar(500)
+  recorded_by_id   String
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  member           Member   @relation(fields: [member_id], references: [id], onDelete: Restrict)
+  recorded_by      Member   @relation("SavingsRecorder", fields: [recorded_by_id], references: [id], onDelete: Restrict)
+
+  @@index([member_id, transaction_date])
+  @@map("savings")
+}
+
+model MemberShare {
+  id                 String   @id @default(uuid())
+  member_id          String   @unique
+  number_of_shares   Int      @default(0) @db.Integer
+  share_value        Decimal  @default(1000) @db.Decimal(12, 2)
+  total_profit       Decimal  @default(0) @db.Decimal(12, 2)
+  last_distribution_at DateTime?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  member             Member   @relation(fields: [member_id], references: [id], onDelete: Restrict)
+
+  @@index([member_id])
+  @@map("member_shares")
+}
+
+model ShareConfiguration {
+  id                    String      @id @default(uuid())
+  min_shares            Int         @default(1) @db.Integer
+  max_shares            Int         @default(5) @db.Integer
+  share_value           Decimal     @default(1000) @db.Decimal(12, 2)
+  interest_rate         Decimal     @default(3) @db.Decimal(5, 2)
+  effective_from        DateTime
+  effective_to          DateTime?
+  is_active             Boolean     @default(true)
+  created_by_id         String?    @unique
+  created_at            DateTime    @default(now())
+  updated_at            DateTime    @updatedAt
+
+  created_by            Member?     @relation("ShareConfigCreator", fields: [created_by_id], references: [id], onDelete: SetNull)
+
+  @@index([effective_from])
+  @@index([is_active])
+  @@map("share_configurations")
+}
+
+model MemberShareTransaction {
+  id                String      @id @default(uuid())
+  member_id         String
+  shares_purchased  Int
+  share_value       Decimal     @db.Decimal(12, 2)
+  total_amount      Decimal     @db.Decimal(12, 2)
+  period_month      Int         @db.Integer
+  period_year       Int         @db.Integer
+  created_at        DateTime    @default(now())
+
+  member            Member      @relation(fields: [member_id], references: [id], onDelete: Cascade)
+
+  @@index([member_id, period_year, period_month])
+  @@map("member_share_transactions")
+}
+
+model ShareProfitDistribution {
+  id                String   @id @default(uuid())
+  distribution_period ShareDistributionPeriod
+  period_start      DateTime
+  period_end        DateTime
+  total_profit      Decimal  @db.Decimal(12, 2)
+  allocated_percent Decimal  @default(30) @db.Decimal(5, 2)
+  distributed_at    DateTime @default(now())
+  created_by_id     String
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  created_by        Member   @relation("ShareProfitDistributionCreator", fields: [created_by_id], references: [id], onDelete: Restrict)
+
+  @@unique([distribution_period, period_start, period_end])
+  @@map("share_profit_distributions")
+}
+
+model Meeting {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(255)
+  date        DateTime
+  start_time  String   @db.VarChar(20)
+  end_time    String?  @db.VarChar(20)
+  location    String?  @db.VarChar(255)
+  description String?
+  meeting_code String? @unique @db.VarChar(50)
+  event_type  MeetingEventType @default(regular_meeting)
+  is_active   Boolean  @default(true)
+  attendance_status MeetingAttendanceStatus @default(draft)
+  created_by_id String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  created_by  Member   @relation(fields: [created_by_id], references: [id], onDelete: Restrict)
+  attendances Attendance[]
+  meeting_fines MeetingFine[]
+
+  @@index([date])
+  @@index([is_active])
+  @@index([attendance_status])
+  @@map("meetings")
+}
+
+model MeetingFine {
+  id          String   @id @default(uuid())
+  meeting_id  String
+  member_id   String
+  amount      Decimal  @db.Decimal(12, 2)
+  reason      String   @default("Absent from meeting") @db.VarChar(255)
+  status      MeetingFineStatus @default(pending)
+  paid_at     DateTime?
+  created_by_id String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  meeting     Meeting   @relation(fields: [meeting_id], references: [id], onDelete: Restrict)
+  member      Member    @relation("MeetingFineMember", fields: [member_id], references: [id], onDelete: Restrict)
+  created_by  Member    @relation("MeetingFineCreator", fields: [created_by_id], references: [id], onDelete: Restrict)
+
+  @@unique([meeting_id, member_id])
+  @@index([status])
+  @@map("meeting_fines")
+}
+
+model Attendance {
+  id          String          @id @default(uuid())
+  member_id   String
+  meeting_id  String
+  intent      AttendanceIntent @default(pending)
+  timestamp   DateTime        @default(now())
+  verified    Boolean         @default(false)
+  verified_by_id String?
+  verified_at DateTime?
+  created_at  DateTime        @default(now())
+  updated_at  DateTime        @updatedAt
+
+  member      Member    @relation("AttendanceMember", fields: [member_id], references: [id], onDelete: Restrict)
+  meeting     Meeting   @relation(fields: [meeting_id], references: [id], onDelete: Restrict)
+  verified_by Member?   @relation("AttendanceVerifier", fields: [verified_by_id], references: [id], onDelete: SetNull)
+
+  @@unique([member_id, meeting_id])
+  @@index([meeting_id, verified])
+  @@map("attendance")
+}
+
+model EmergencyAid {
+  id          String            @id @default(uuid())
+  title       String            @db.VarChar(255)
+  description String?           @default("") @db.VarChar(1000)
+  amount      Decimal           @db.Decimal(12, 2)
+  deadline    DateTime
+  status      EmergencyAidStatus @default(open)
+  created_by_id String
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+
+  created_by  Member               @relation(fields: [created_by_id], references: [id], onDelete: Restrict)
+  payments    EmergencyAidPayment[] @relation()
+  participations EmergencyAidParticipation[]
+
+  @@index([status, deadline])
+  @@map("emergency_aids")
+}
+
+model EmergencyAidPayment {
+  id                      String           @id @default(uuid())
+  member_id               String
+  emergency_aid_id        String
+  amount                  Decimal          @db.Decimal(12, 2)
+  payment_status          PaymentStatus    @default(pending)
+  fine_applied            Boolean          @default(false)
+  fine_amount             Decimal          @default(0) @db.Decimal(12, 2)
+  outstanding_amount      Decimal          @default(0) @db.Decimal(12, 2)
+  payment_method          String           @default("Mobile Money") @db.VarChar(100)
+  paid_at                 DateTime?
+  recorded_by_id          String
+  created_at              DateTime         @default(now())
+  updated_at              DateTime         @updatedAt
+
+  member                  Member           @relation("EmergencyAidPaymentMember", fields: [member_id], references: [id], onDelete: Restrict)
+  emergency_aid           EmergencyAid     @relation(fields: [emergency_aid_id], references: [id], onDelete: Restrict)
+  recorded_by             Member           @relation("EmergencyAidPaymentRecorder", fields: [recorded_by_id], references: [id], onDelete: Restrict)
+
+  @@unique([member_id, emergency_aid_id])
+  @@index([emergency_aid_id, payment_status])
+  @@map("emergency_aid_payments")
+}
+
+model EmergencyAidParticipation {
+  id              String           @id @default(uuid())
+  member_id       String
+  emergency_aid_id String
+  participation_month String       @db.VarChar(20)
+  created_at      DateTime         @default(now())
+
+  member          Member           @relation(fields: [member_id], references: [id], onDelete: Cascade)
+  emergency_aid   EmergencyAid     @relation(fields: [emergency_aid_id], references: [id], onDelete: Cascade)
+
+  @@unique([member_id, emergency_aid_id, participation_month])
+  @@index([member_id])
+  @@map("emergency_aid_participations")
+}
+
+model Announcement {
+  id          String           @id @default(uuid())
+  title       String           @db.VarChar(255)
+  message     String           @db.Text
+  priority    AnnouncementPriority @default(medium)
+  expires_at  DateTime?
+  created_by_id String
+  is_active   Boolean          @default(true)
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+
+  created_by  Member           @relation(fields: [created_by_id], references: [id], onDelete: Restrict)
+
+  @@index([created_at])
+  @@index([expires_at])
+  @@index([is_active])
+  @@map("announcements")
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  actor_id      String
+  actor_role    String   @db.VarChar(50)
+  action        String   @db.VarChar(255)
+  entity_type   String   @db.VarChar(100)
+  entity_id     String   @db.VarChar(255)
+  changes       Json?
+  previous_values Json?
+  new_values     Json?
+  ip_address    String?  @default("") @db.VarChar(50)
+  user_agent    String?  @default("") @db.VarChar(500)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  actor         Member   @relation("AuditLogActor", fields: [actor_id], references: [id], onDelete: Restrict)
+
+  @@index([entity_type, entity_id])
+  @@index([actor_id, created_at])
+  @@index([created_at])
+  @@map("audit_logs")
+}
+
+model SmsTemplate {
+  id        String   @id @default(uuid())
+  name      String   @unique @db.VarChar(255)
+  content   String   @db.Text
+  category  SmsCategory @default(general)
+  variables String[] @default([])
+  is_active Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  notifications SmsNotification[]
+
+  @@map("sms_templates")
+}
+
+model SmsNotification {
+  id                    String      @id @default(uuid())
+  recipient_phone       String      @db.VarChar(50)
+  recipient_member_id   String?
+  template_id           String?
+  message               String      @db.Text
+  status                SmsStatus   @default(pending)
+  priority              SmsPriority @default(medium)
+  category              SmsCategory @default(general)
+  delivery_provider     String?
+  provider_message_id   String?
+  error_message         String?
+  scheduled_at          DateTime?
+  sent_at               DateTime?
+  delivered_at          DateTime?
+  created_by_id         String
+  related_entity_type   String?
+  related_entity_id     String?
+  created_at            DateTime    @default(now())
+  updated_at            DateTime    @updatedAt
+
+  recipient_member      Member?     @relation("SmsNotificationRecipient", fields: [recipient_member_id], references: [id], onDelete: SetNull)
+  template              SmsTemplate? @relation(fields: [template_id], references: [id], onDelete: SetNull)
+  created_by            Member      @relation("SmsNotificationCreator", fields: [created_by_id], references: [id], onDelete: Restrict)
+
+  @@index([status, scheduled_at])
+  @@index([recipient_member_id])
+  @@index([category, created_at])
+  @@map("sms_notifications")
+}
+
+model SmsSubscription {
+  id                       String   @id @default(uuid())
+  member_id                String   @unique
+  loan_alerts              Boolean  @default(true)
+  contribution_reminders   Boolean  @default(true)
+  attendance_alerts        Boolean  @default(true)
+  meeting_reminders        Boolean  @default(true)
+  general_notifications    Boolean  @default(true)
+  repayment_alerts         Boolean  @default(true)
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  member                   Member   @relation(fields: [member_id], references: [id], onDelete: Restrict)
+
+  @@index([member_id])
+  @@map("sms_subscriptions")
+}
+
+model ReportSnapshot {
+  id                       String   @id @default(uuid())
+  report_type              String   @db.VarChar(100)
+  period_start_date        DateTime
+  period_end_date          DateTime
+  period_label             String   @db.VarChar(255)
+  filters_applied_status   String?
+  filters_applied_member_id String?
+  filters_applied_group_by String?
+  generated_by_id          String
+  generated_by_full_name   String   @db.VarChar(255)
+  generated_by_role        String   @db.VarChar(50)
+  generated_at             DateTime @default(now())
+  payload                  Json
+  payload_hash             String   @db.VarChar(64)
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  generated_by             Member   @relation("ReportSnapshotCreator", fields: [generated_by_id], references: [id], onDelete: Restrict)
+
+  @@index([report_type, period_start_date, period_end_date])
+  @@index([generated_by_id, created_at])
+  @@index([created_at])
+  @@map("report_snapshots")
+}
+
+model PasswordResetOtp {
+  id          String   @id @default(uuid())
+  member_id   String
+  otp_hash    String   @db.VarChar(64)
+  expires_at  DateTime
+  is_used     Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  member      Member   @relation(fields: [member_id], references: [id], onDelete: Restrict)
+
+  @@index([expires_at], map: "idx_password_reset_tokens_expires_at")
+  @@map("password_reset_tokens")
+}
+
+model TokenBlacklist {
+  id          String   @id @default(uuid())
+  token_hash  String   @unique @db.VarChar(64)
+  expires_at  DateTime
+  created_at  DateTime @default(now())
+
+  @@index([expires_at])
+  @@map("token_blacklist")
+}

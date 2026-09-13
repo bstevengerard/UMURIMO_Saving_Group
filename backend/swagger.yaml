@@ -1,0 +1,2574 @@
+openapi: 3.0.0
+info:
+  title: Ikimina MS API
+  version: 1.1.0
+  description: API for Ikimina Savings Group Management System
+servers:
+   - url: /
+     description: Ikimina API server
+
+tags:
+   - name: Auth
+     description: Authentication endpoints (register, login, password reset)
+   - name: Members
+     description: Member management endpoints (CRUD, approvals, status)
+   - name: Loans
+     description: Loan management endpoints (requests, status, schedules)
+   - name: Repayments
+     description: Repayment and installment management
+   - name: Contributions
+     description: Contribution recording and history
+   - name: Attendance
+     description: Meeting attendance management
+   - name: Meetings
+     description: Meeting scheduling and management
+   - name: Announcements
+     description: Announcements management
+   - name: SMS
+     description: SMS templates and notifications
+   - name: Reports
+     description: Various reports (loans, contributions, attendance, defaulters)
+   - name: Dashboard
+     description: Dashboard statistics
+   - name: Loan Config
+     description: Loan configuration settings
+   - name: Roles
+     description: Role and permission management endpoints
+
+paths:
+  /api/hello:
+    get:
+      summary: Health hello endpoint
+      responses:
+        '200':
+          description: OK
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberRegister'
+      responses:
+        '201':
+          description: Member registered successfully
+        '400':
+          description: Bad request
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login member or admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+
+  /api/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request a password reset link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Reset token generated (returned in dev)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForgotPasswordResponse'
+        '400':
+          description: Bad request
+
+  /api/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password using a valid reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetPasswordResponse'
+        '400':
+          description: Invalid or expired token / bad request
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current member
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current member profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout member (invalidate session)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+        '401':
+          description: Unauthorized
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+  /api/auth/verify-email/{token}:
+    get:
+      tags: [Auth]
+      summary: Verify email with token
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email verified successfully
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Invalid or expired token
+
+
+  /api/members:
+    get:
+      tags: [Members]
+      summary: List all members (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [member, admin]
+        - in: query
+          name: isApproved
+          schema:
+            type: boolean
+        - in: query
+          name: isActive
+          schema:
+            type: boolean
+        - in: query
+          name: search
+          description: Search by name, email, or phone
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated list of members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+    post:
+      tags: [Members]
+      summary: Create a new member (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberRegister'
+      responses:
+        '201':
+          description: Member created
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden (not admin)
+
+
+  /api/members/pending:
+    get:
+      tags: [Members]
+      summary: Get pending member approvals (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of pending members
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/members/{id}/approve:
+    put:
+      tags: [Members]
+      summary: Approve member registration (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Member approved
+        '404':
+          description: Member not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/members/{id}/loans:
+    get:
+      tags: [Members]
+      summary: Get member's loans summary
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated list of member's loans
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin or member)
+        '404':
+          description: Member not found
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+
+  /api/members/{id}/contributions:
+    get:
+      tags: [Members]
+      summary: Get member's contribution history
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: fromDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: toDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of member's contributions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin or member)
+        '404':
+          description: Member not found
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+
+  /api/members/{id}/attendance:
+    get:
+      tags: [Members]
+      summary: Get member's attendance record
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated list of member's attendance records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin or member)
+        '404':
+          description: Member not found
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+
+  /api/members/{id}/documents:
+    post:
+      tags: [Members]
+      summary: Upload member documents (ID, etc.) (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                documentType:
+                  type: string
+                  enum: [id, passport, license, other]
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Document uploaded successfully
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Member not found
+        '500':
+          description: Internal server error
+
+
+  /api/members/{id}/status:
+    put:
+      tags: [Members]
+      summary: Activate or suspend a member (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberStatusUpdate'
+      responses:
+        '200':
+          description: Member status updated
+        '404':
+          description: Member not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/members/{id}/reset-password:
+    put:
+      tags: [Members]
+      summary: Reset a member password (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberResetPassword'
+      responses:
+        '200':
+          description: Password reset successfully
+        '404':
+          description: Member not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/members/me:
+    put:
+      tags: [Members]
+      summary: Update own profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberProfileUpdate'
+      responses:
+        '200':
+          description: Profile updated
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+  /api/loans:
+    post:
+      tags: [Loans]
+      summary: Submit a loan request
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanRequest'
+      responses:
+        '201':
+          description: Loan request submitted
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+    get:
+      tags: [Loans]
+      summary: Get all loans (admin) or member's loans
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, disbursed, completed, overdue]
+        - in: query
+          name: fromDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: toDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: memberId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated list of loans
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+
+
+
+  /api/loans/preview:
+    post:
+      tags: [Loans]
+      summary: Preview loan repayment calculations
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, termMonths]
+              properties:
+                amount:
+                  type: number
+                termMonths:
+                  type: integer
+                interestRate:
+                  type: number
+      responses:
+        '200':
+          description: Preview calculated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  amount:
+                    type: number
+                  interestRate:
+                    type: number
+                  termMonths:
+                    type: integer
+                  totalRepayment:
+                    type: number
+                  monthlyInstallment:
+                    type: number
+                  interest:
+                    type: number
+        '401':
+          description: Unauthorized
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+
+  /api/loans/stats:
+    get:
+      tags: [Loans]
+      summary: Loan statistics summary
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Loan statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoansReport'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+        '500':
+          description: Internal server error
+
+  /api/loans/{id}:
+    get:
+      tags: [Loans]
+      summary: Get loan by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Loan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+        '404':
+          description: Loan not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin or loan owner)
+    put:
+      tags: [Loans]
+      summary: Update loan status (approve/reject/disbursed/completed)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanUpdate'
+      responses:
+        '200':
+          description: Loan updated
+        '404':
+          description: Loan not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/repayments/history:
+     get:
+       tags: [Repayments]
+       summary: General repayment history (admin only)
+       security:
+         - bearerAuth: []
+       parameters:
+         - in: query
+           name: page
+           schema:
+             type: integer
+             default: 1
+         - in: query
+           name: limit
+           schema:
+             type: integer
+             default: 20
+         - in: query
+           name: fromDate
+           schema:
+             type: string
+             format: date
+         - in: query
+           name: toDate
+           schema:
+             type: string
+             format: date
+         - in: query
+           name: memberId
+           schema:
+             type: string
+       responses:
+         '200':
+           description: Paginated list of repayment history
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/PaginatedResponse'
+         '401':
+           description: Unauthorized
+         '403':
+           description: Forbidden (not admin)
+         '422':
+           description: Validation error
+         '500':
+           description: Internal server error
+   
+  /api/repayments/overdue:
+    get:
+      tags: [Repayments]
+      summary: List overdue payments (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: fromDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: toDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of overdue payments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+
+  # Batch Operations
+  /api/members/batch:
+    post:
+      tags: [Members]
+      summary: Bulk import members (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                members:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/MemberRegister'
+      responses:
+        '200':
+          description: Members imported successfully
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/contributions/batch:
+    post:
+      tags: [Contributions]
+      summary: Bulk record contributions (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contributions:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ContributionRecord'
+      responses:
+        '200':
+          description: Contributions recorded successfully
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/sms/batch:
+    post:
+      tags: [SMS]
+      summary: Bulk send SMS
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmsBroadcast'
+      responses:
+        '200':
+          description: SMS batch sent successfully
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/repayments/installments/{installmentId}:
+    get:
+      tags: [Repayments]
+      summary: Get a single repayment installment
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: installmentId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Installment details
+        '401':
+          description: Unauthorized
+    put:
+      tags: [Repayments]
+      summary: Record a repayment payment
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: installmentId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentPayRequest'
+      responses:
+        '200':
+          description: Payment recorded
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+  /api/attendance:
+    get:
+      tags: [Attendance]
+      summary: Get attendance records
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: memberId
+          schema:
+            type: string
+        - in: query
+          name: meetingId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Attendance records
+        '401':
+          description: Unauthorized
+    post:
+      tags: [Attendance]
+      summary: Mark attendance (via QR or manual)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttendanceMark'
+      responses:
+        '201':
+          description: Attendance marked
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+  /api/attendance/{id}/verify:
+    put:
+      tags: [Attendance]
+      summary: Verify attendance (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Attendance verified
+        '404':
+          description: Attendance record not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/contributions:
+    get:
+      tags: [Contributions]
+      summary: Get contribution records
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+        - in: query
+          name: memberId
+          schema:
+            type: string
+        - in: query
+          name: week
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: fromDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: toDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [paid, pending, overdue]
+      responses:
+        '200':
+          description: Paginated list of contributions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+    post:
+      tags: [Contributions]
+      summary: Record a contribution (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContributionRecord'
+      responses:
+        '201':
+          description: Contribution recorded
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+
+  /api/announcements:
+    get:
+      tags: [Announcements]
+      summary: Get announcements (with optional filtering)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: activeOnly
+          schema:
+            type: string
+            enum: ['true', 'false']
+            default: 'true'
+      responses:
+        '200':
+          description: List of announcements
+        '401':
+          description: Unauthorized
+    post:
+      tags: [Announcements]
+      summary: Create an announcement (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnouncementCreate'
+      responses:
+        '201':
+          description: Announcement created
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/announcements/{id}:
+    get:
+      tags: [Announcements]
+      summary: Get announcement by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Announcement details
+        '404':
+          description: Announcement not found
+        '401':
+          description: Unauthorized
+    put:
+      tags: [Announcements]
+      summary: Update announcement (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnouncementUpdate'
+      responses:
+        '200':
+          description: Announcement updated
+        '404':
+          description: Announcement not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+    delete:
+      tags: [Announcements]
+      summary: Delete announcement (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Announcement deleted
+        '404':
+          description: Announcement not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/meetings:
+    post:
+      tags: [Meetings]
+      summary: Create a meeting (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeetingCreate'
+      responses:
+        '201':
+          description: Meeting created
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+    get:
+      tags: [Meetings]
+      summary: Get meetings (with optional filtering)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of meetings
+        '401':
+          description: Unauthorized
+
+  /api/meetings/{id}:
+    get:
+      tags: [Meetings]
+      summary: Get meeting by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Meeting details
+        '404':
+          description: Meeting not found
+        '401':
+          description: Unauthorized
+    put:
+      tags: [Meetings]
+      summary: Update meeting (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeetingUpdate'
+      responses:
+        '200':
+          description: Meeting updated
+        '404':
+          description: Meeting not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+    delete:
+      tags: [Meetings]
+      summary: Delete meeting (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Meeting deleted
+        '404':
+          description: Meeting not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/meetings/{id}/qr:
+    get:
+      tags: [Meetings]
+      summary: Get QR code for a meeting (for scanning)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: QR code data
+        '404':
+          description: Meeting not found
+        '401':
+          description: Unauthorized
+
+  /api/sms/templates:
+    get:
+      tags: [SMS]
+      summary: Get all SMS templates
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of templates
+        '401':
+          description: Unauthorized
+    post:
+      tags: [SMS]
+      summary: Create an SMS template (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmsTemplateCreate'
+      responses:
+        '201':
+          description: Template created
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/sms/templates/{id}:
+    put:
+      tags: [SMS]
+      summary: Update an SMS template (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmsTemplateCreate'
+      responses:
+        '200':
+          description: Template updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/sms/send:
+    post:
+      tags: [SMS]
+      summary: Send an SMS (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmsSend'
+      responses:
+        '200':
+          description: SMS sent
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/sms/broadcast:
+    post:
+      tags: [SMS]
+      summary: Broadcast SMS (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmsBroadcast'
+      responses:
+        '200':
+          description: Broadcast queued
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/sms:
+    get:
+      tags: [SMS]
+      summary: List all SMS notifications (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notification history
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/sms/{id}/status:
+    put:
+      tags: [SMS]
+      summary: Update SMS notification status (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationStatusUpdate'
+      responses:
+        '200':
+          description: Status updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/sms/subscription/me:
+    put:
+      tags: [SMS]
+      summary: Update own SMS subscription settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmsSubscription'
+      responses:
+        '200':
+          description: Subscription updated
+        '401':
+          description: Unauthorized
+
+
+
+  # Webhook/Event Endpoints
+
+  /api/webhooks/sms/callback:
+    post:
+      summary: SMS delivery status callback
+      tags: [SMS]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                messageId:
+                  type: string
+                status:
+                  type: string
+                  enum: [sent, delivered, failed]
+      responses:
+        '200':
+          description: Callback received
+        '400':
+          description: Bad request
+
+  /api/webhooks/payment/callback:
+    post:
+      summary: Payment gateway callback
+      tags: [Payments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transactionId:
+                  type: string
+                status:
+                  type: string
+                  enum: [success, failed, pending]
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: Callback received
+        '400':
+          description: Bad request
+
+  /api/reports/contributions:
+    get:
+      tags: [Reports]
+      summary: Get weekly contributions report (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Contributions report
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/reports/loans:
+    get:
+      tags: [Reports]
+      summary: Get loan report (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Loans report
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/reports/attendance:
+    get:
+      tags: [Reports]
+      summary: Get attendance report (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Attendance report
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/reports/defaulters:
+    get:
+      tags: [Reports]
+      summary: Get loan defaulters report (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Defaulters report
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/reports/members/activity:
+    get:
+      tags: [Reports]
+      summary: Get member activity report (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Member activity report
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/reports/loans/print:
+    get:
+      tags: [Reports]
+      summary: Get loan report for printing
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: HTML print view
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/dashboard/stats:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard statistics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard stats
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/roles:
+    get:
+      tags: [Roles]
+      summary: Get all roles and their permissions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of all roles with permissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+    post:
+      tags: [Roles]
+      summary: Create a new role with permissions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role, permissions]
+              properties:
+                role:
+                  type: string
+                permissions:
+                  type: object
+                  additionalProperties:
+                    type: boolean
+      responses:
+        '201':
+          description: Role created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          description: Bad request (role already exists)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+
+  /api/roles/{role}:
+    get:
+      tags: [Roles]
+      summary: Get permissions for a specific role
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: role
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Role permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Role not found
+    put:
+      tags: [Roles]
+      summary: Update permissions for an existing role
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: role
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissions]
+              properties:
+                permissions:
+                  type: object
+                  additionalProperties:
+                    type: boolean
+      responses:
+        '200':
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Role not found
+    delete:
+      tags: [Roles]
+      summary: Delete a role
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: role
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Role deleted successfully
+        '400':
+          description: Bad request (cannot delete admin/member)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Role not found
+
+  /api/roles/assign:
+    post:
+      tags: [Roles]
+      summary: Assign a role to a member
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [memberId, role]
+              properties:
+                memberId:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '200':
+          description: Role assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Member or role not found
+
+  /api/roles/member/{memberId}:
+    get:
+      tags: [Roles]
+      summary: Get a member's role and permissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: memberId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Member's role and permissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  memberId:
+                    type: string
+                  role:
+                    type: string
+                  permissions:
+                    type: object
+                    additionalProperties:
+                      type: boolean
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Member not found
+
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    PaginatedResponse:
+      type: object
+      properties:
+        data:
+          type: array
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+        hasNext:
+          type: boolean
+        hasPrev:
+          type: boolean
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: false
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        statusCode:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string
+    MemberUpdate:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+    MemberStatusUpdate:
+      type: object
+      required: [isActive]
+      properties:
+        isActive:
+          type: boolean
+
+    MemberResetPassword:
+      type: object
+      required: [newPassword]
+      properties:
+        newPassword:
+          type: string
+          minLength: 6
+
+    MemberProfileUpdate:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+
+    MemberRegister:
+      type: object
+      required: [email, nationalId, password, fullName, phone]
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 5
+          maxLength: 100
+        nationalId:
+          type: string
+          pattern: '^[0-9]{16}$'  # Example for 16-digit ID
+          minLength: 16
+          maxLength: 16
+        password:
+          type: string
+          minLength: 6
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        phone:
+          type: string
+          pattern: '^\+?[0-9]{10,15}$'
+        role:
+          type: string
+          default: member
+
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    ForgotPasswordResponse:
+      type: object
+      properties:
+        msg:
+          type: string
+        _devResetToken:
+          type: string
+          description: Reset token returned only in development mode
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword, email]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          minLength: 6
+        email:
+          type: string
+          format: email
+
+    ResetPasswordResponse:
+      type: object
+      properties:
+        msg:
+          type: string
+        token:
+          type: string
+          description: New JWT token
+
+    SwitchLoginRequest:
+      type: object
+      required: [phone, pin]
+      properties:
+        phone:
+          type: string
+        pin:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        nationalId:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+        isApproved:
+          type: boolean
+          default: false
+        createdAt:
+          type: string
+          format: date-time
+
+    Loan:
+      type: object
+      properties:
+        id:
+          type: string
+        memberId:
+          type: string
+        amount:
+          type: number
+        interestRate:
+          type: number
+        termMonths:
+          type: integer
+        status:
+          type: string
+          enum: [pending, approved, rejected, disbursed, completed, overdue]
+        requestDate:
+          type: string
+          format: date-time
+        approvalDate:
+          type: string
+          format: date-time
+        disbursementDate:
+          type: string
+          format: date-time
+        dueDate:
+          type: string
+          format: date-time
+        balance:
+          type: number
+
+    LoanRequest:
+      type: object
+      required: [amount, termMonths]
+      properties:
+        amount:
+          type: number
+          minimum: 1
+        interestRate:
+          type: number
+          minimum: 0
+        termMonths:
+          type: integer
+          minimum: 1
+
+    LoanUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected, disbursed, completed]
+        disbursementDate:
+          type: string
+          format: date-time
+
+    RepaymentSchedule:
+      type: object
+      properties:
+        id:
+          type: string
+
+    RepaymentPayRequest:
+      type: object
+      required: [amount, paymentMethod]
+      properties:
+        amount:
+          type: number
+        paymentMethod:
+          type: string
+
+    Attendance:
+      type: object
+      properties:
+        id:
+          type: string
+        memberId:
+          type: string
+        meetingId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        verified:
+          type: boolean
+          default: false
+        verifiedBy:
+          type: string
+        verifiedAt:
+          type: string
+          format: date-time
+
+    AttendanceMark:
+      type: object
+      required: [meetingId]
+      properties:
+        meetingId:
+          type: string
+        qrCode:
+          type: string
+        memberId:
+          type: string
+
+    Contribution:
+      type: object
+      properties:
+        id:
+          type: string
+        memberId:
+          type: string
+        week:
+          type: string
+          format: date
+        amount:
+          type: number
+        paymentStatus:
+          type: string
+          enum: [paid, pending, overdue]
+        recordedBy:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+
+    ContributionRecord:
+      type: object
+      required: [memberId, amount]
+      properties:
+        memberId:
+          type: string
+        week:
+          type: string
+          format: date
+        amount:
+          type: number
+          minimum: 0
+        paymentStatus:
+          type: string
+          enum: [paid, pending]
+          default: pending
+
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        expiresAt:
+          type: string
+          format: date-time
+        createdBy:
+          $ref: '#/components/schemas/User'
+        isActive:
+          type: boolean
+          default: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AnnouncementCreate:
+      type: object
+      required: [title, message]
+      properties:
+        title:
+          type: string
+        message:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+          default: medium
+        expiresAt:
+          type: string
+          format: date-time
+
+    AnnouncementUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        message:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        expiresAt:
+          type: string
+          format: date-time
+        isActive:
+          type: boolean
+
+    Meeting:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        meetingDate:
+          type: string
+          format: date-time
+        location:
+          type: string
+        qrCode:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    MeetingCreate:
+      type: object
+      required: [title, meetingDate]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        meetingDate:
+          type: string
+          format: date-time
+        location:
+          type: string
+
+    MeetingUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        meetingDate:
+          type: string
+          format: date-time
+        location:
+          type: string
+
+    SmsTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    SmsTemplateCreate:
+      type: object
+      required: [name, content]
+      properties:
+        name:
+          type: string
+        content:
+          type: string
+
+    SmsSend:
+      type: object
+      required: [to, message]
+      properties:
+        to:
+          type: string
+        message:
+          type: string
+        templateId:
+          type: string
+
+    SmsBroadcast:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        role:
+          type: string
+          enum: [member, admin]
+        templateId:
+          type: string
+
+    NotificationList:
+      type: object
+      properties:
+        id:
+          type: string
+        to:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [sent, delivered, failed, pending]
+        sentAt:
+          type: string
+          format: date-time
+
+    NotificationStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [sent, delivered, failed, pending]
+
+    SmsSubscription:
+      type: object
+      properties:
+        memberId:
+          type: string
+        smsEnabled:
+          type: boolean
+        phone:
+          type: string
+
+    ContributionsReport:
+      type: object
+      properties:
+        total:
+          type: number
+        byWeek:
+          type: array
+          items:
+            type: object
+            properties:
+              week:
+                type: string
+                format: date
+              total:
+                type: number
+
+    LoansReport:
+      type: object
+      properties:
+        total:
+          type: number
+        byStatus:
+          type: object
+          properties:
+            pending:
+              type: integer
+            approved:
+              type: integer
+            disbursed:
+              type: integer
+            completed:
+              type: integer
+            rejected:
+              type: integer
+            overdue:
+              type: integer
+
+    AttendanceReport:
+      type: object
+      properties:
+        totalMeetings:
+          type: integer
+        totalAttendance:
+          type: integer
+        attendanceRate:
+          type: number
+          format: float
+        byMeeting:
+          type: array
+          items:
+            type: object
+            properties:
+              meetingId:
+                type: string
+              date:
+                type: string
+                format: date-time
+              present:
+                type: integer
+              absent:
+                type: integer
+
+    DefaultersReport:
+      type: object
+      properties:
+        totalDefaulters:
+          type: integer
+        totalOverdue:
+          type: number
+        defaulters:
+          type: array
+          items:
+            type: object
+            properties:
+              memberId:
+                type: string
+              memberName:
+                type: string
+              phone:
+                type: string
+              overdueAmount:
+                type: number
+              dueDate:
+                type: string
+                format: date
+
+    MemberActivityReport:
+      type: object
+      properties:
+        totalMembers:
+          type: integer
+        activeMembers:
+          type: integer
+        inactiveMembers:
+          type: integer
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              memberId:
+                type: string
+              fullName:
+                type: string
+              loansCount:
+                type: integer
+              contributionsTotal:
+                type: number
+              attendanceRate:
+                type: number
+                format: float
+
+    DashboardStats:
+      type: object
+      properties:
+        totalMembers:
+          type: integer
+        activeMembers:
+          type: integer
+        totalLoans:
+          type: integer
+        approvedLoans:
+          type: integer
+        pendingLoans:
+          type: integer
+        totalContributions:
+          type: number
+        weeklyContributions:
+          type: number
+        attendanceRate:
+          type: number
+          format: float
+
+    LoanConfiguration:
+      type: object
+      properties:
+        maxLoanAmount:
+          type: number
+          default: 500000
+        minLoanAmount:
+          type: number
+          default: 10000
+        defaultInterestRate:
+          type: number
+          default: 10
+        maxTermMonths:
+          type: integer
+          default: 12
+        minTermMonths:
+          type: integer
+          default: 1
+        overduePenaltyRate:
+          type: number
+          default: 5
+        gracePeriodDays:
+          type: integer
+          default: 7
+        allowMultipleLoans:
+          type: boolean
+          default: false
+        requireGuarantor:
+          type: boolean
+          default: false
+
+
+    Role:
+      type: object
+      properties:
+        role:
+          type: string
+        permissions:
+          type: object
+          additionalProperties:
+            type: boolean
+
